@@ -64,7 +64,7 @@ def compute_v(
     # Finalize rewrite and loss layers
     loss_layer = max(hparams.v_loss_layer, layer)
     print(f"Rewrite layer is {layer}")
-    print(f"Tying optimization objective to {loss_layer}")
+    print(f"Tying optimization objective to {loss_layer}", f"Chosen from Layers {str([hparams.v_loss_layer, layer])}")
 
     # Set up an optimization over a latent vector that, when output at the
     # rewrite layer, i.e. hypothesized fact lookup location, will induce the

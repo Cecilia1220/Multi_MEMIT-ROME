@@ -3,6 +3,11 @@ import shutil
 from itertools import islice
 from time import time
 from typing import Tuple, Union
+import os
+import certifi
+
+os.environ['SSL_CERT_FILE'] = certifi.where()
+
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -13,11 +18,14 @@ from dsets import (
     AttributeSnippets,
     CounterFactDataset,
     MENDQADataset,
+    ModQADataset,
+    ModCFDataset,
     MultiCounterFactDataset,
     get_tfidf_vectorizer,
 )
 from experiments.py.eval_utils_counterfact import compute_rewrite_quality_counterfact
 from experiments.py.eval_utils_zsre import compute_rewrite_quality_zsre
+from experiments.py.eval_utils_mod import compute_rewrite_quality_mod
 from memit import MEMITHyperParams, apply_memit_to_model
 from rome import ROMEHyperParams, apply_rome_to_model
 from util import nethook
@@ -34,6 +42,8 @@ DS_DICT = {
     "mcf": (MultiCounterFactDataset, compute_rewrite_quality_counterfact),
     "cf": (CounterFactDataset, compute_rewrite_quality_counterfact),
     "zsre": (MENDQADataset, compute_rewrite_quality_zsre),
+    "mod_zsre": (ModQADataset, compute_rewrite_quality_mod),
+    "mod_cf": (ModCFDataset, compute_rewrite_quality_mod)
 }
 
 
@@ -100,13 +110,22 @@ def main(
     # Load data
     print("Loading dataset, attribute snippets, tf-idf data")
     snips = AttributeSnippets(DATA_DIR) if not skip_generation_tests else None
+    print("snips:", snips)
     vec = get_tfidf_vectorizer(DATA_DIR) if not skip_generation_tests else None
 
     if num_edits > 1:
         assert ds_name != "cf", f"{ds_name} does not support multiple edits"
 
     ds_class, ds_eval_method = DS_DICT[ds_name]
-    ds = ds_class(DATA_DIR, tok=tok, size=dataset_size_limit)
+    #print("ds_class:", ds_class)
+    #print("ds_eval_method:",ds_eval_method)
+    
+    if ds_name == "mod_cf":
+        ds = ds_class("/scratch/jl13122/generated_counterfact_dataset", tok=tok, size=dataset_size_limit)
+    elif ds_name == "mod_zsre":
+        ds = ds_class("/scratch/jl13122/zsre_modified_datasets", tok=tok, size=dataset_size_limit)
+    else:
+        ds = ds_class(DATA_DIR, tok=tok, size=dataset_size_limit)
 
     # Get cache templates
     cache_template = None
@@ -143,6 +162,8 @@ def main(
         etc_args = dict(cache_template=cache_template) if any(alg in alg_name for alg in ["ROME", "MEMIT"]) else dict()
 
         start = time()
+
+        
         edited_model, weights_copy = apply_algo(
             model,
             tok,
@@ -156,12 +177,33 @@ def main(
             **args_conserve_memory,
             **etc_args,
         )
+        
+        edited_model, weights_copy = apply_algo(
+            edited_model,
+            tok,
+            [
+                {"case_id": record["case_id"], **record["requested_reverse_rewrite"]}
+                for record in record_chunks
+            ],
+            hparams,
+            copy=False,
+            return_orig_weights=True,
+            **args_conserve_memory,
+            **etc_args,
+        )
+        
+        
+        
         exec_time = time() - start
         print("Execution took", exec_time)
 
         # Evaluate new model
         start = time()
-        gen_test_vars = [snips, vec]
+        
+        if ds_name == "mod_zsre":
+            gen_test_vars = [None, vec]
+        else:
+            gen_test_vars = [snips, vec]
         for record in record_chunks:
             out_file = Path(case_result_template.format(num_edits, record["case_id"]))
             if out_file.exists():
@@ -245,7 +287,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--ds_name",
-        choices=["mcf", "cf", "zsre"],
+        choices=["mcf", "cf", "zsre", "mod_cf", "mod_zsre"],
         default="mcf",
         help="Dataset to perform evaluations on. Either CounterFact (cf), MultiCounterFact (mcf), or zsRE (zsre).",
     )

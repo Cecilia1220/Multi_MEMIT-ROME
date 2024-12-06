@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from torch.cuda.amp import autocast
 
 from rome.layer_stats import layer_stats
 from util import nethook
@@ -25,40 +26,64 @@ def apply_memit_to_model(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
     requests: List[Dict],
-    hparams: MEMITHyperParams,
+    hparams: Any,  # Assuming MEMITHyperParams is defined elsewhere
     copy=False,
     return_orig_weights=False,
     cache_template: Optional[str] = None,
 ) -> Tuple[AutoModelForCausalLM, Dict[str, Any]]:
     """
-    Returns a model with the desired changes.
-    :param copy: If true, will preserve the original model while creating a new one to edit.
-        Note that you are responsible for deallocating the new model's memory to avoid leaks.
-    :return: (1) the updated model, (2) an original copy of the weights that changed
+    Applies the MEMIT method to the model by updating weights with the changes described in the requests.
+    
+    :param model: The original causal language model to apply changes to.
+    :param tok: The tokenizer used with the model.
+    :param requests: List of dictionaries containing the update requests.
+    :param hparams: Hyperparameters used for MEMIT updates.
+    :param copy: If True, creates a deep copy of the model to apply changes, preserving the original.
+    :param return_orig_weights: If True, returns the original weights that were modified.
+    :param cache_template: Optional cache template for intermediate results.
+    :return: (1) The updated model, and (2) a dictionary with original weights if `return_orig_weights` is True.
     """
-
+    
     weights_copy = {}
     if copy:
-        model = deepcopy(model)
+        model = deepcopy(model)  # Create a deep copy of the model if needed
 
+    # Execute MEMIT updates (assumes `execute_memit` is defined elsewhere)
     deltas = execute_memit(model, tok, requests, hparams, cache_template=cache_template)
 
     with torch.no_grad():
-        for w_name, (key_mat, val_mat) in deltas.items():
-            key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
-            upd_matrix = key_mat @ val_mat.T
-            w = nethook.get_parameter(model, w_name)
-            upd_matrix = upd_matrix_match_shape(upd_matrix, w.shape)
-
-            if return_orig_weights and w_name not in weights_copy:
-                weights_copy[w_name] = w.detach().clone()
-
-            w[...] += upd_matrix.float()
+        # Enable mixed precision for memory optimization
+        with autocast():
+            for w_name, (key_mat, val_mat) in deltas.items():
+                # Move matrices to GPU and perform the update operation
+                key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
+                
+                # Calculate the update matrix
+                upd_matrix = key_mat @ val_mat.T
+                
+                # Fetch the current weight matrix from the model using nethook
+                w = nethook.get_parameter(model, w_name)
+                
+                # Match the update matrix shape with the weight shape
+                upd_matrix = upd_matrix_match_shape(upd_matrix, w.shape)
+                
+                # If returning original weights, store a copy before modifying
+                if return_orig_weights and w_name not in weights_copy:
+                    weights_copy[w_name] = w.detach().clone()
+                
+                # Apply the update to the weights
+                w[...] += upd_matrix.float()
+                
+                # Free up GPU memory by moving unused tensors back to CPU
+                torch.cuda.synchronize()
+                #key_mat.cpu()
+                #val_mat.cpu()
+                #upd_matrix.cpu()
+                torch.cuda.empty_cache()
 
     print(f"New weights successfully inserted into {list(deltas.keys())}")
-
+    
     return model, weights_copy
-
 
 def execute_memit(
     model: AutoModelForCausalLM,

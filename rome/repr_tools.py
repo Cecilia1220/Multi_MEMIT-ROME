@@ -41,40 +41,45 @@ def get_reprs_at_word_tokens(
 
 
 def get_words_idxs_in_templates(
-    tok: AutoTokenizer, context_templates: str, words: str, subtoken: str
-) -> int:
+    tok: AutoTokenizer, context_templates: List[str], words: List[str], subtoken: str
+) -> List[List[int]]:
     """
     Given list of template strings, each with *one* format specifier
-    (e.g. "{} plays basketball"), and words to be substituted into the
+    (e.g., "{} plays basketball"), and words to be substituted into the
     template, computes the post-tokenization index of their last tokens.
     """
 
-    assert all(
-        tmp.count("{}") == 1 for tmp in context_templates
-    ), "We currently do not support multiple fill-ins for context"
+    # Check if all templates have exactly one format specifier
+    for i, tmp in enumerate(context_templates):
+        if tmp.count("{}") != 1:
+            raise ValueError(f"Template at index {i} ('{tmp}') does not contain exactly one '{{}}' placeholder.")
 
     # Compute prefixes and suffixes of the tokenized context
     fill_idxs = [tmp.index("{}") for tmp in context_templates]
     prefixes, suffixes = [
         tmp[: fill_idxs[i]] for i, tmp in enumerate(context_templates)
-    ], [tmp[fill_idxs[i] + 2 :] for i, tmp in enumerate(context_templates)]
+    ], [tmp[fill_idxs[i] + 2:] for i, tmp in enumerate(context_templates)]
     words = deepcopy(words)
 
     # Pre-process tokens
     for i, prefix in enumerate(prefixes):
         if len(prefix) > 0:
-            assert prefix[-1] == " "
+            if prefix[-1] != " ":
+                raise ValueError(f"Prefix '{prefix}' at index {i} does not end with a space.")
             prefix = prefix[:-1]
-
             prefixes[i] = prefix
             words[i] = f" {words[i].strip()}"
 
     # Tokenize to determine lengths
-    assert len(prefixes) == len(words) == len(suffixes)
+    if not (len(prefixes) == len(words) == len(suffixes)):
+        raise ValueError(
+            f"Mismatch in lengths: prefixes ({len(prefixes)}), words ({len(words)}), suffixes ({len(suffixes)})."
+        )
+
     n = len(prefixes)
     batch_tok = tok([*prefixes, *words, *suffixes])
     prefixes_tok, words_tok, suffixes_tok = [
-        batch_tok[i : i + n] for i in range(0, n * 3, n)
+        batch_tok[i: i + n] for i in range(0, n * 3, n)
     ]
     prefixes_len, words_len, suffixes_len = [
         [len(el) for el in tok_list]
@@ -89,15 +94,12 @@ def get_words_idxs_in_templates(
                 + words_len[i]
                 - (1 if subtoken == "last" or suffixes_len[i] == 0 else 0)
             ]
-            # If suffix is empty, there is no "first token after the last".
-            # So, just return the last token of the word.
             for i in range(n)
         ]
     elif subtoken == "first":
         return [[prefixes_len[i]] for i in range(n)]
     else:
         raise ValueError(f"Unknown subtoken type: {subtoken}")
-
 
 def get_reprs_at_idxs(
     model: AutoModelForCausalLM,

@@ -3,6 +3,9 @@ import json
 import os
 import re
 from collections import defaultdict
+import certifi
+
+os.environ['SSL_CERT_FILE'] = certifi.where()
 
 import numpy
 import torch
