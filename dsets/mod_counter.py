@@ -105,10 +105,16 @@ class ModCFDataset(Dataset):
                         "target_true": {"str": subject, "id": subject_id},
                         "relation_id":  record["relation_id"],
                     },
+                    
+                    
                     "paraphrase_prompts": [self._clean(p) for p in (record.get("prompt_for_object_false", [])[:2])],
                     "reverse_paraphrase_prompts": [self._clean(p) for p in record.get("prompt_for_subject", [])],
                     "local_prompts": [self._clean(p) for p in local_prompts],
+                    
                     "relation_prompt": [self._clean(p) for p in record.get("prompt_for_relation", [])],
+                    
+                    
+                    
                     "general_prompts": [self._clean(p) for p in general_prompts],
                     "generation_prompts": [self._clean(p) for p in record.get("prompt_for_object_false", [])[2:]],
                     "neighborhood_prompts": [self._clean(p) for p in local_prompts],

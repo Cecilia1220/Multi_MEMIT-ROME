@@ -116,6 +116,7 @@ def main(
     if num_edits > 1:
         assert ds_name != "cf", f"{ds_name} does not support multiple edits"
 
+
     ds_class, ds_eval_method = DS_DICT[ds_name]
     #print("ds_class:", ds_class)
     #print("ds_eval_method:",ds_eval_method)
@@ -178,7 +179,7 @@ def main(
             **etc_args,
         )
         
-        edited_model, weights_copy = apply_algo(
+        """edited_model, weights_copy = apply_algo(
             edited_model,
             tok,
             [
@@ -190,7 +191,7 @@ def main(
             return_orig_weights=True,
             **args_conserve_memory,
             **etc_args,
-        )
+        )"""
         
         
         

@@ -24,6 +24,8 @@ def compute_rewrite_quality_mod(
     subject, target_new, target_true = (
         record["requested_rewrite"][x] for x in ["subject", "target_new", "target_true"]
     )
+    
+    
     obj, subject_new, subject_true = (
         record["requested_reverse_rewrite"][x] for x in ["subject", "target_new", "target_true"]
     )
@@ -104,7 +106,6 @@ def compute_rewrite_quality_mod(
             [
                 "rewrite_prompts",
                 "paraphrase_prompts",
-                "reverse_paraphrase_prompts",
                 "local_prompts",
                 "relation_prompt",
                 "general_prompts",
@@ -116,7 +117,6 @@ def compute_rewrite_quality_mod(
             [
                 "rewrite_prompts",
                 "paraphrase_prompts",
-                "reverse_paraphrase_prompts",
                 "local_prompts",
                 "relation_prompt",
                 "general_prompts",

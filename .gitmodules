@@ -1,0 +1,3 @@
+[submodule "dataCollector2.0"]
+	path = dataCollector2.0
+	url = https://github.com/VincentPit/dataCollector2.0.git
