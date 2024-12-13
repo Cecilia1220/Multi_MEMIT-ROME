@@ -164,7 +164,14 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-data_generator/memit_datasets
+data_generators/memit_datasets
+
+data_generators/CF_collector/generated_dataset
+
+data_generators/CF_collector/mend_dataset_count
+
+data_generators/CF_collector/memit_datasets
+
 
 
 
