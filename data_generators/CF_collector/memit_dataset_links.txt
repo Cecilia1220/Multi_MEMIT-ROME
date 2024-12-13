@@ -1,0 +1,8 @@
+https://memit.baulab.info/data/dsets/attribute_snippets.json
+https://memit.baulab.info/data/dsets/counterfact.json
+https://memit.baulab.info/data/dsets/idf.npy
+https://memit.baulab.info/data/dsets/known_1000.json
+https://memit.baulab.info/data/dsets/multi_counterfact.json
+https://memit.baulab.info/data/dsets/tfidf_vocab.json
+https://memit.baulab.info/data/dsets/zsre_mend_eval.json
+https://memit.baulab.info/data/dsets/zsre_mend_train.json
